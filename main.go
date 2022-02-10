@@ -39,7 +39,7 @@ func main() {
 				}
 			case <-quit:
 				ticker.Stop()
-				fmt.Println("Routine gestoppt")
+				fmt.Println("stop")
 				return
 			}
 		}
