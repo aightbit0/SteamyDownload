@@ -12,15 +12,16 @@ import (
 )
 
 type Config struct {
-	Refresh        int    `json:"refresh"`
-	Path           string `json:"path"`
-	TimeToShutdown string `json:"timetoshutdown"`
+	Refresh        int      `json:"refresh"`
+	Path           string   `json:"path"`
+	TimeToShutdown string   `json:"timetoshutdown"`
+	Tasks          []string `json:"tasks"`
+	Shutdown       bool     `json:"shutdown"`
 }
 
 func main() {
 	currentTime := time.Now()
 	fmt.Println("start listening... ", currentTime.Format("2006-01-02 15:04:05"))
-	fmt.Println("type in e for stop Routines")
 	fmt.Println("type in a for stop shutdown (after game installed)")
 	conf := loadJSONConfig("steamchecker.json")
 	//time to refresh in seconds
@@ -28,22 +29,34 @@ func main() {
 	quit := make(chan struct{})
 
 	//starts routine reading file
-	go func() {
-		for {
-			select {
-			case <-ticker.C:
-				fmt.Println("info: reading file...")
-				shut := ReadLogFile(currentTime, *conf)
-				if shut {
-					close(quit)
-				}
-			case <-quit:
-				ticker.Stop()
-				fmt.Println("stop")
-				return
+	for {
+		select {
+		case <-ticker.C:
+			fmt.Println("info: checking...")
+			shut := ReadLogFile(currentTime, *conf)
+			if shut {
+				actions(quit, conf)
 			}
+		case <-quit:
+			ticker.Stop()
+			fmt.Println("Routine gestoppt")
+			return
 		}
-	}()
+	}
+
+}
+
+func actions(quit chan struct{}, conf *Config) {
+	close(quit)
+
+	for i := 0; i < len(conf.Tasks); i++ {
+		check := taskKiller(conf.Tasks[i])
+		if !check {
+			fmt.Println("failed to kill: ", conf.Tasks[i])
+		} else {
+			fmt.Println("killed: ", conf.Tasks[i])
+		}
+	}
 
 	for {
 		fmt.Print("action: -> ")
@@ -53,15 +66,14 @@ func main() {
 			typ = scanner1.Text()
 		}
 
-		if typ == "e" {
-			close(quit)
-		}
-
 		if typ == "a" {
 			killShutdown()
 		}
-	}
 
+		if typ == "e" {
+			os.Exit(0)
+		}
+	}
 }
 
 func ReadLogFile(currentTime time.Time, config Config) bool {
@@ -96,10 +108,13 @@ func ReadLogFile(currentTime time.Time, config Config) bool {
 
 				if t.After(t2) {
 					fmt.Println("game installed successfull !")
-					fmt.Println("starting shutdown.....")
-					fmt.Println("type in a to cancel shutdown")
 					file.Close()
-					shutdown(config.TimeToShutdown)
+					if config.Shutdown {
+						fmt.Println("starting shutdown.....")
+						fmt.Println("type in a to cancel shutdown")
+						shutdown(config.TimeToShutdown)
+					}
+
 					return true
 				}
 			}
@@ -112,7 +127,6 @@ func ReadLogFile(currentTime time.Time, config Config) bool {
 }
 
 func shutdown(tvalue string) {
-	fmt.Println(tvalue)
 	app := "shutdown"
 	arg1 := "-s"
 	arg2 := "-t"
@@ -134,6 +148,16 @@ func killShutdown() {
 		return
 	}
 	return
+}
+
+func taskKiller(task string) bool {
+	cmd := exec.Command("TASKKILL", "-F", "-IM", task)
+	stdout, err := cmd.Output()
+	if err != nil {
+		fmt.Println(err.Error(), stdout)
+		return false
+	}
+	return true
 }
 
 func loadJSONConfig(p string) *Config {

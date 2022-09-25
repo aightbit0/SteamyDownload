@@ -1,6 +1,8 @@
 {
-	"refresh": 120,
+	"refresh": 10,
 	"path":"C:\\Program Files (x86)\\Steam\\logs/content_log.txt",
-	"timetoshutdown": "45"
+	"timetoshutdown": "45",
+	"tasks": ["Steam.exe"],
+	"shutdown": true
 
 }
